@@ -6,11 +6,22 @@
 # Run `docker-compose up` to start Dgraph.
 
 version: "3.2"
+
 services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:20.0.1
+    ports:
+      - 8090:8080
+    environment:
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KEYCLOAK_ADMIN=admin
+    volumes:
+     - ./keycloak/data:/opt/keycloak/data/
+    command: start-dev
   zero:
-    image: dgraph/dgraph:v21.03.1
-#    volumes:
-#      - ./zero/data:/dgraph
+    image: ghcr.io/libremfg/baas:22.11.01
+    volumes:
+      - ./zero/data:/dgraph
     ports:
       - 5080:5080
       - 6080:6080
@@ -18,250 +29,32 @@ services:
     command: dgraph zero --my=zero:5080
     container_name: zero
   alpha:
-    image: dgraph/dgraph:v21.03.1
-#    volumes:
-#      - ./alpha/data:/dgraph
+    image: ghcr.io/libremfg/baas:22.11.01
+    volumes:
+      - ./alpha/data:/dgraph
     ports:
       - 8080:8080
       - 9080:9080
 #    env_file:
 #      - ACCESS_KEYS.txt
     restart: on-failure
-    command: dgraph alpha --my=alpha:7080 --zero=zero:5080  --security whitelist=0.0.0.0/0
+    command: dgraph alpha --my=alpha:7080 --zero=zero:5080  --security whitelist=0.0.0.0/0 --oidc bypass=false;url=http://keycloak:8080;realm=libre;client-id=libreBaas;client-secret=pk98t8jVtwF9P8erRHZpLklWtz1TzGTR
     container_name: alpha
     healthcheck:
       interval: 5s
       timeout: 3s
       retries: 5
       test: ["CMD", "curl", "-f", "http://alpha:8080/admin"]
-  ratel:
-    image: dgraph/dgraph:v20.11.3
-    ports:
-      - 8000:8000
-    command: dgraph-ratel
-  libre-ui:
-    image:  ghcr.io/spruik/libre-admin-ui:v0.2.1
-    ports:
-      - 80:80
-    environment:
-      - AUTH0_DOMAIN=demo-libremfg.us.auth0.com
-      - AUTH0_CLIENT_ID=cEye379jRD9TCroW6LRwsNf7LQkMYOBj
-      - GRAPHQL_ENDPOINT=http://localhost:4000/graphql
-      - GRAPHQL_SUBSCRIPTION_ENDPOINT=ws://localhost:8080/graphql
-      - MQTT_USERNAME=admin
-      - MQTT_PASSWORD=public
-      - MQTT_URL=localhost
-      - MQTT_PORT=8083
-    depends_on:
-      - "influxdb"
-      - "mqtt"
-      - "alpha"
-      - "zero"
-  mqtt:
-    image:  emqx/emqx:4.3.8
-    ports:
-      - 1883:1883
-      - 8083:8083
-      - 18083:18083
-    restart: always
-    environment:
-      - EMQX_LOADED_PLUGINS=emqx_recon,emqx_retainer,emqx_management,emqx_dashboard,emqx_auth_mnesia
-      - EMQX_ALLOW_ANONYMOUS=true
-      - EMQX_ACL_NOMATCH=allow
-    container_name: mqtt
-    healthcheck:
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      test: ["CMD", "curl", "-f", "http://mqtt:18083"]
-  libre-core:
-    image: ghcr.io/spruik/libre-core:0.3.8
-    restart: always
-    ports:
-      - 4002:4002
-    environment:
-      - LIBRE_CONFIG_FILE=/etc/config/config.json
-    volumes:
-      - ./libre-core/config:/etc/config
-    depends_on:
-      - "influxdb"
-      - "mqtt"
-      - "zero"
-      - "dgraph-init"
-    container_name: libre-core
-  graphql-pubsub:
-    image: ghcr.io/spruik/graphql-pubsub:0.0.5
-    restart: always
-    environment:
-      - LIBRE_CONFIG_FILE=/etc/config/config.json
-    volumes:
-      - ./graphql-pubsub/config:/etc/config
-    depends_on:
-      alpha:
-        condition: service_healthy
-      mqtt:
-        condition: service_healthy
-      influxdb:
-        condition: service_healthy
-    container_name: graphql-pubsub
-  libre-workflow-pubsub:
-    image: ghcr.io/spruik/libre-workflow-pubsub:0.0.7
-    restart: always
-    environment:
-      - LIBRE_CONFIG_FILE=/etc/config/config.json
-    volumes:
-      - ./libre-workflow-pubsub/config:/etc/config
-    depends_on:
-      alpha:
-        condition: service_healthy
-      mqtt:
-        condition: service_healthy
-      influxdb:
-        condition: service_healthy
-    container_name: libre-workflow-pubsub
-  influxdb:
-    image: influxdb:2.0.7
-    volumes:
-      # Mount for influxdb data directory and configuration
-      - ./influxdb/data:/var/lib/influxdb2:rw
-    ports:
-      - "8086:8086"
-    environment:
-      # Use these same configurations parameters in your telegraf configuration, mytelegraf.conf.
-      - DOCKER_INFLUXDB_INIT_MODE=setup
-      - DOCKER_INFLUXDB_INIT_USERNAME=admin
-      - DOCKER_INFLUXDB_INIT_PASSWORD=mypasswordmypasswordmypassword
-      - DOCKER_INFLUXDB_INIT_ORG=Libre
-      - DOCKER_INFLUXDB_INIT_BUCKET=Libre
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=mytokenmytokenmytoken
-    container_name: influxdb
-    healthcheck:
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      test: ["CMD", "curl", "-f", "http://influxdb:8086"]
-  packml-sim:
-    image: spruiktec/packml-simulator
-    restart: always
-    environment:
-      SITE: PACKML
-      AREA: SIM
-      LINE: 'LINE01'
-      MQTT_URL: mqtt://mqtt:1883
-      MQTT_USERNAME: admin
-      MQTT_PASSWORD: public
-      MQTT_CLIENT_ID: packml_sim
-    mem_limit: 30MB
-    depends_on:
-      alpha:
-        condition: service_healthy
-      mqtt:
-        condition: service_healthy
-      influxdb:
-        condition: service_healthy
-  libre-gateway:
-    ports:
-      - 4000:4000
-    image: ghcr.io/spruik/libre-gateway:0.1.1
-    restart: always
-    container_name: libre-gateway
-    environment:
-      - GRAPHQL_ENDPOINT=http://alpha:8080
-      - LIBRE_CORE_ENDPOINT=http://libre-core:4002
-      - LIBRE_AUTH_CERT_URL=https://demo-libremfg.us.auth0.com/.well-known/jwks.json
-    volumes:
-      - type: bind
-        source: ./libre-gateway/supergraph.graphql
-        target: /app/supergraph.graphql
-      - type: bind
-        source: ./libre-gateway/supergraph.yaml
-        target: /app/supergraph.yaml
-    depends_on:
-      alpha:
-        condition: service_healthy
-      mqtt:
-        condition: service_healthy
-      influxdb:
-        condition: service_healthy
-    healthcheck:
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      test: ["CMD", "curl", "-f", "http://libre-gateway:4000"]
-  grafana:
-    image: grafana/grafana:8.2.1
-    container_name: grafana
-    restart: always
-    environment:
-      - GF_INSTALL_PLUGINS=fifemon-graphql-datasource,marcusolsson-gantt-panel,isaozler-paretochart-panel,michaeldmoore-multistat-panel
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning
-      - ./grafana/plugins:/var/lib/grafana/plugins
-      - ./grafana/dashboards:/var/lib/grafana/dashboards
-      - ./grafana/data:/var/lib/grafana
-      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
-    depends_on:
-      - "mqtt"
-      - "alpha"
-      - "influxdb"
+
   dgraph-init:
-    image: dgraph/dgraph:v21.03.1
+    image: ghcr.io/libremfg/baas:22.11.01
     volumes:
       - ./schema:/dgraph/schema
     command: >
       sh -c "curl -X POST alpha:8080/admin/schema --data-binary '@./schema/libreSchema.sdl' &&
              dgraph live -f ./schema/g01.rdf.gz -a alpha:9080 -z zero:5080"
     container_name: dgraph-init
-    depends_on:
-      alpha:
-          condition: service_healthy
-  libre-edge-agent:
-    image: ghcr.io/spruik/libre-edge-agent:0.4.0
-    restart: always
-    environment:
-      - LIBRE_CONFIG_FILE=/etc/config/config.json
-    volumes:
-      - ./libre-edge-agent/config:/etc/config
-    depends_on:
-      alpha:
-        condition: service_healthy
-      mqtt:
-        condition: service_healthy
-      influxdb:
-        condition: service_healthy
-    container_name: libre-edge-agent
-  appsmith:
-    image: appsmith/appsmith-ce:v1.6.6
-    container_name: appsmith-ce
-    environment:
-      - APPSMITH_MAIL_ENABLED=true
-      - APPSMITH_MAIL_FROM=app@libremfg.ai
-      - APPSMITH_REPLY_TO=app@libremfg.ai
-      - APPSMITH_MAIL_HOST=smtp.sendgrid.net
-      - APPSMITH_MAIL_PORT=587
-      - APPSMITH_MAIL_SMTP_TLS_ENABLED=true
-      - APPSMITH_MAIL_USERNAME=apikey
-      - APPSMITH_MAIL_PASSWORD=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
-      - APPSMITH_MAIL_SMTP_AUTH=true
-      - SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_GOOGLE_ISSUER-URI=https://demo-libremfg.us.auth0.com/
-      - SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_GOOGLE_USER-NAME-ATTRIBUTE=email
-      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT-ID=cEye379jRD9TCroW6LRwsNf7LQkMYOBj
-      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT-SECRET=1QR-caDuhi-UcM0YzgKcip4wIdiTZrljH8K3h8WOHe_Zqg34Vi-7q3V0E6P-0JA0
-      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_AUTHORIZATION-GRANT-TYPE=authorization_code
-      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_REDIRECT-URI={baseUrl}/login/oauth2/code/{registrationId}
-    ports:
-      - "3080:80"
-      - "443:443"
-      - "9001:9001"
-    volumes:
-      - ./stacks:/appsmith-stacks
-    labels:
-      com.centurylinklabs.watchtower.enable: "true"
-  auto_update:
-    image: containrrr/watchtower:latest-dev
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    # Update check interval in seconds.
-    command: --interval 300 --label-enable --cleanup
+    #depends_on:
+    #  alpha:
+    #      condition: service_healthy
+

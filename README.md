@@ -6,28 +6,17 @@ The software contained in this project, and the images pulled by the docker-comp
 
 If you would like to use Libre in a production environment, please get in touch with Libre Technologies to ensure you have the correct stable versions of services for you specific needs.
 
-## What does the docker-compose include?
-![image](docs/LibreArchitecture.png)
+
 #### Databases
-* Dgraph - The store for all non-time-series data in the Libre platform. Dgraph is a schema driven, GraphQL native, open-source database.
-* Influxdb - The leading open-source time-series database
-#### MQTT Broker
-* EMQX - The MQTT Broker used in the platform. We use EMQX because it has great support for clustered, highly available deployments in kubernetes
-#### Dashboard Tool
-* Grafana v8
-#### Simulator
-* Spruik PackML Simulator - Simulates a production line that produces PackML compliant data sets
+* Libre Baas - The store for all non-time-series data in the Libre platform. Baas is a schema driven, GraphQL native, distributed database.
+#### Identity Server
+* Keycloak - An Authentication and Authorization service
+
 #### Libre Platform
-* Libre Administration UI
-* libre-core microservice
-* libre-server microservice
-* graphql-pubsub microservice
-* libre-workflow-pubsub microservice
-* libre-gateway
+* Libre BPMN Engine
 
 ## INSTALLATION ##
 1. Download this repository
-  ![image](https://user-images.githubusercontent.com/54924665/133958186-de997f1e-a50a-4c7e-a066-317bfa85110f.png)
   * If you download the ZIP, make sure to unzip it and move it to your preferred location
 2. Install docker
   * Windows: 
@@ -39,7 +28,3 @@ If you would like to use Libre in a production environment, please get in touch 
   * Navigate to your local installation on a terminal
   * Navigate to getting-started/standalone
   * Run the command: docker compose up
-4. Create an account for the demo
-  * Go to http://localhost
-  * Create an account via auth0
-  * Email support@libremfg.com to get your account authorised
