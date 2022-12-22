@@ -19,7 +19,7 @@ services:
      - ./keycloak/data:/opt/keycloak/data/
     command: start-dev
   zero:
-    image: ghcr.io/libremfg/baas:22.11.01
+    image: ghcr.io/libremfg/baas:22.12.20
     volumes:
       - ./zero/data:/dgraph
     ports:
@@ -29,7 +29,7 @@ services:
     command: dgraph zero --my=zero:5080
     container_name: zero
   alpha:
-    image: ghcr.io/libremfg/baas:22.11.01
+    image: ghcr.io/libremfg/baas:22.12.20
     volumes:
       - ./alpha/data:/dgraph
     ports:
@@ -46,15 +46,15 @@ services:
       retries: 5
       test: ["CMD", "curl", "-f", "http://alpha:8080/admin"]
 
-  dgraph-init:
-    image: ghcr.io/libremfg/baas:22.11.01
-    volumes:
-      - ./schema:/dgraph/schema
-    command: >
-      sh -c "curl -X POST alpha:8080/admin/schema --data-binary '@./schema/libreSchema.sdl' &&
-             dgraph live -f ./schema/g01.rdf.gz -a alpha:9080 -z zero:5080"
-    container_name: dgraph-init
-    #depends_on:
-    #  alpha:
-    #      condition: service_healthy
+#  dgraph-init:
+#    image: ghcr.io/libremfg/baas:22.12.06
+#    volumes:
+#      - ./schema:/dgraph/schema
+#    command: >
+#      sh -c "curl -X POST alpha:8080/admin/schema --data-binary '@./schema/schema.sdl' &&
+#             dgraph live -f ./schema/g01.rdf.gz -a alpha:9080 -z zero:5080"
+#    container_name: dgraph-init
+#    depends_on:
+#      alpha:
+#          condition: service_healthy
 
